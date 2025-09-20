@@ -3,7 +3,6 @@ import numpy as np
 from Bio import SeqIO
 import os
 from collections import Counter
-from transformers import AutoTokenizer
 
 def read_fasta(fasta_file):
     """Read MSA into SeqRecords"""
@@ -16,11 +15,16 @@ def fata_to_matrix(seq_dict):
     seq_matrix = np.array([list(str(rec.seq)) for rec in records])
     return seq_matrix
 
-def decode_sequences_to_matrix(seqs):
-    """Tokens to numpy array"""
-    tokenizer = AutoTokenizer.from_pretrained("/home/navasard/Phylo-rope-v2/esm2_t12_35M_UR50D")
-    decoded_sequences = np.array(tokenizer.batch_decode(seqs, skip_special_tokens=True))
-    return decoded_sequences
+def msa_to_matrix(msa):
+    """SeqRecord to numpy array"""
+    seq_matrix = np.array([list(_) for _ in msa])
+    return seq_matrix
+
+#def decode_sequences_to_matrix(seqs):
+#    """Tokens to numpy array"""
+#    tokenizer = AutoTokenizer.from_pretrained("/home/navasard/Phylo-rope-v2/esm2_t12_35M_UR50D")
+#    decoded_sequences = np.array(tokenizer.batch_decode(seqs, skip_special_tokens=True))
+#    return decoded_sequences
 
 #def aafreq_percol(seq_matrix):
 #    """Calculate frequency of amino acids per column"""
@@ -83,12 +87,13 @@ def mask_coevolved(freq_df, aa_n=2, tol=0.03):
     print(f"Number of positions with {aa_n} aa with frquency {rep} +- {tol}: {stats}, {(stats/len(binary_cols))*100}%")
     return binary_cols
 
-def combine_masks(binary_cols_list):
+def combine_masks(binary_cols_list, N):
+    # N is number of MSA sequences
     pos_encoded = pd.Series(0,index=binary_cols_list[0].index)
     for binary_cols in binary_cols_list:
         pos_encoded = pos_encoded + binary_cols
     #repeat the mask for each msa
-    pos_encoded_msa=pd.concat([pos_encoded.to_frame().T] * len(seq_dict), axis=0)
+    pos_encoded_msa=pd.concat([pos_encoded.to_frame().T] * N, axis=0)
     try:
         stats=(pos_encoded_msa==1).astype(int).iloc[0].value_counts()[1]
     except:

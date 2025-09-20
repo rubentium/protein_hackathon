@@ -5,8 +5,10 @@ import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 
+import msa_to_carcass
 from msa_to_carcass import *
 
+#for debug use alnfile="../../../phylo_data/phylo_data/msa/2_50_tips.fasta" 
 
 def load_alignment(filepath):
     """
@@ -23,8 +25,9 @@ def load_alignment(filepath):
             else:
                 sequences.append(line)
 
-    tokenizer = AutoTokenizer.from_pretrained("/home/navasard/Phylo-rope-v2/esm2_t12_35M_UR50D")
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
     seqs = tokenizer(sequences, return_tensors="pt")["input_ids"]
+    #msa = [[_] for _ in sequences]
     return seqs, ids, sequences
 
 
@@ -54,7 +57,7 @@ def load_carcass(msa):
     Output: Columns = amino acid positions , Rows = MSA, Values 1-> pass one or more rules
     """
 
-    seq_matrix = np.array(msa)
+    seq_matrix = msa_to_matrix(msa)
 
     freq_df = aafreq_percol(seq_matrix)
 
@@ -64,7 +67,7 @@ def load_carcass(msa):
 
     pos_coev3 = mask_coevolved(freq_df, aa_n=3)
 
-    pos_encoded_msa = combine_masks([pos_conserved , pos_coev2 , pos_coev3])
+    pos_encoded_msa = combine_masks([pos_conserved , pos_coev2 , pos_coev3], len(seq_matrix))
 
     pos_encoded_msa_list = pos_encoded_msa.values.tolist()
 
