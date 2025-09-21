@@ -114,7 +114,7 @@ class Phyloformer(nn.Module):
         self,
         n_blocks: int = 6,
         n_heads: int = 4,
-        h_dim: int = 64,
+        h_dim: int = 256,
         project_dim = 192,
         dropout: float = 0.0,
         n_seqs: int = 20,
@@ -138,7 +138,7 @@ class Phyloformer(nn.Module):
         self.seq_len = seq_len
 
         # Initialize seq2pair matrix
-        self.seq2pair = adaptable_seq2pair(20, SEQ2PAIR)
+        # self.seq2pair = adaptable_seq2pair(20, SEQ2PAIR)
 
         self.initial_embed_tokens = nn.Embedding(
             self.alphabet_size,
@@ -169,17 +169,16 @@ class Phyloformer(nn.Module):
                 in_channels=self.project_dim, out_channels=1, kernel_size=1, stride=1
             ),
             nn.Dropout(self.dropout),
-            nn.Softplus(),
-        )
+            )
 
     def to(self, *args, **kwargs):
         self = super().to(*args, **kwargs)
-        self.seq2pair = self.seq2pair.to(*args, **kwargs)
+        # self.seq2pair = self.seq2pair.to(*args, **kwargs)
 
     def forward(self, input):
         # input: (batch_size, n_seqs, seq_len)
         # Set seq2pair matrix if needed
-        self._set_seq2pair(input.shape[-2])
+        # self._set_seq2pair(input.shape[-2])
 
         # Embed alignment to embed_dim
         # becomes (batch_size, n_seqs, seq_len, embed_dim)
@@ -188,17 +187,17 @@ class Phyloformer(nn.Module):
         out = self.embedding_block(input, input)[0]
         out = out.permute(-4, -1, -3, -2)
 
-        # Pair representation -> (batch_size, project_dim, nb_pairs, seq_len)
-        out = torch.matmul(self.seq2pair, out)
+        # Pair representation -> (batch_size, project_dim, nseqs, seq_len)
+        # out = torch.matmul(self.seq2pair, out)
         # Attention
         for block in self.attention_blocks:
-            out = checkpoint(block, out)
-
+            # out = checkpoint(block, out, use_reentrant=False)
+            out = block(out)
         # Convolution -> (batch_size, 1, nb_pairs, seq_len)
         out = self.pwFNN(out)
-
+        out = torch.sigmoid(torch.squeeze(out, dim=1))
         # Average of sequence length -> (batch_size, nb_pairs)
-        out = torch.squeeze(torch.mean(out, dim=-1))
+        # out = torch.squeeze(torch.mean(out, dim=-1))
 
         return out
 

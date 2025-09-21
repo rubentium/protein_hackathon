@@ -110,7 +110,7 @@ def choose_data(
             "or none of them."
         )
 
-    return train_pairs, val_pairs
+    return train_pairs[:8000], val_pairs[:1000]
 
 
 class LightningAxialTransformer(lightning.LightningModule):
@@ -165,7 +165,7 @@ class LightningAxialTransformer(lightning.LightningModule):
     def training_step(self, batch, *args, **kwargs):
         x, y = batch
         y_hat = self.model(x)
-        loss = self.criterion(y_hat, y.type_as(y_hat).squeeze())
+        loss = self.criterion(y_hat, y.type_as(y_hat))
         self.log("train_loss", loss)
         self.log("learning_rate", self.optimizers().param_groups[0]["lr"])
         return loss
@@ -174,7 +174,7 @@ class LightningAxialTransformer(lightning.LightningModule):
         x, y = batch
         # x, y = x.to("cpu"), y.to("cpu")
         y_hat = self.model(x)
-        y = y.type_as(y_hat).squeeze()
+        y = y.type_as(y_hat)
         # Compute validation metrics and log them
         loss = self.criterion(y_hat, y)
         d = {"val_mre": MRE(y_hat, y, True), "val_mae": MAE(y_hat, y, True)}
@@ -216,21 +216,21 @@ if __name__ == "__main__":
     # DATA
     data_grp = parser.add_argument_group("data", description="Data IO parameters")
     data_grp.add_argument(
-        "--train-trees", "-t", required=True, help="Directory with training trees"
+        "--train-trees", "-t", default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/train/trees", help="Directory with training trees"
     )
     data_grp.add_argument(
         "--train-alignments",
         "-a",
-        required=True,
+        default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/train/alignments",
         help="Directory with training alignments",
     )
     data_grp.add_argument(
-        "--val-trees", "-T", required=False, help="Directory with validation trees"
+        "--val-trees", "-T", default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/val/trees", required=False, help="Directory with validation trees"
     )
     data_grp.add_argument(
         "--val-alignments",
         "-A",
-        required=False,
+        default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/val/alignments",
         help="Directory with validation alignments",
     )
     data_grp.add_argument(
@@ -261,16 +261,16 @@ if __name__ == "__main__":
     # ARCHITECTURE
     arch_grp = parser.add_argument_group("MODEL ARCHITECTURE")
     arch_grp.add_argument(
-        "--dropout", "-D", default=0.0, type=float, help="Dropout proportion"
+        "--dropout", "-D", default=0.1, type=float, help="Dropout proportion"
     )
     arch_grp.add_argument(
         "--nb-blocks", "-b", default=6, type=int, help="Number of PF blocks"
     )
     arch_grp.add_argument(
-        "--embed-dim", "-d", default=64, type=int, help="Number of embedding dimensions"
+        "--embed-dim", "-d", default=256, type=int, help="Number of embedding dimensions"
     )
     arch_grp.add_argument(
-        "--project-dim", "-p", default=192, type=int, help="Number of projecting dimensions after"
+        "--project-dim", "-p", default=64, type=int, help="Number of projecting dimensions after"
     )
     arch_grp.add_argument(
         "--nb-heads", "-H", default=4, type=int, help="Number of attention heads"
@@ -281,22 +281,22 @@ if __name__ == "__main__":
         "TRAINING", description="Training control parameters"
     )
     train_grp.add_argument(
-        "--nb-epochs", "-e", default=100, type=int, help="Number of epochs to train for"
+        "--nb-epochs", "-e", default=4, type=int, help="Number of epochs to train for"
     )
     train_grp.add_argument(
-        "--warmup-steps", "-w", default=5000, type=int, help="Number of warmup steps"
+        "--warmup-steps", "-w", default=100, type=int, help="Number of warmup steps"
     )
     train_grp.add_argument(
         "--learning-rate",
         "-l",
-        default=1e-4,
+        default=5e-5,
         type=float,
         help="Traget starting learning rate",
     )
     train_grp.add_argument(
         "--check-val-every",
         "-C",
-        default=10_000,
+        default=500,
         type=int,
         help="Check validation dataset every n steps",
     )
@@ -340,7 +340,7 @@ if __name__ == "__main__":
         "--project-name",
         "-P",
         required=False,
-        default="PHYLOFORMER_EXPERIMENTS",
+        default="Protein-hackathon",
         help="Project in which to save this run on WandB",
     )
     log_grp.add_argument(
@@ -372,7 +372,7 @@ if __name__ == "__main__":
         save_dir=args.output_dir,
         project=args.project_name,
         name=args.run_name,
-        offline=True,
+        offline=False,
     )
 
     print(f"Training with args:\n{args}")
@@ -381,12 +381,12 @@ if __name__ == "__main__":
     LOGGING_STEPS = args.log_every
 
     N_CPUS = int(os.environ.get("SLURM_CPUS_PER_TASK", cpu_count()))
-    NUM_WORKERS = N_CPUS // 2
+    NUM_WORKERS = 0 # N_CPUS // 2
 
     global WORKERS_TRAIN
     global WORKERS_VAL
-    WORKERS_TRAIN = max(NUM_WORKERS, N_CPUS - NUM_WORKERS)
-    WORKERS_VAL = min(NUM_WORKERS, N_CPUS - NUM_WORKERS)
+    WORKERS_TRAIN = 0 # max(NUM_WORKERS, N_CPUS - NUM_WORKERS)
+    WORKERS_VAL = 0 # min(NUM_WORKERS, N_CPUS - NUM_WORKERS)
 
     print(
         f"Assigning {WORKERS_TRAIN} training, and {WORKERS_VAL} validation data-loading workers"
@@ -425,7 +425,7 @@ if __name__ == "__main__":
             "devices": int(os.environ["SLURM_GPUS_ON_NODE"]),
             "num_nodes": int(os.environ["SLURM_NNODES"]),
             "strategy": "ddp",
-            "accumulate_grad_batches": 4,
+            "accumulate_grad_batches": 1,
             "precision": 16
         }
 
@@ -438,7 +438,7 @@ if __name__ == "__main__":
         math.ceil(len(train_pairs) / (args.batch_size * n_gpus)) * args.nb_epochs
     )
 
-    criterion = torch.nn.MSELoss()
+    criterion = torch.nn.BCELoss()
     model = LightningAxialTransformer(
         nb_blocks=args.nb_blocks,
         nb_heads=args.nb_heads,
