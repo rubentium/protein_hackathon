@@ -110,7 +110,7 @@ def choose_data(
             "or none of them."
         )
 
-    return train_pairs, val_pairs
+    return train_pairs[:8000], val_pairs[:1000]
 
 
 class LightningAxialTransformer(lightning.LightningModule):
@@ -261,13 +261,13 @@ if __name__ == "__main__":
     # ARCHITECTURE
     arch_grp = parser.add_argument_group("MODEL ARCHITECTURE")
     arch_grp.add_argument(
-        "--dropout", "-D", default=0.0, type=float, help="Dropout proportion"
+        "--dropout", "-D", default=0.1, type=float, help="Dropout proportion"
     )
     arch_grp.add_argument(
         "--nb-blocks", "-b", default=6, type=int, help="Number of PF blocks"
     )
     arch_grp.add_argument(
-        "--embed-dim", "-d", default=64, type=int, help="Number of embedding dimensions"
+        "--embed-dim", "-d", default=256, type=int, help="Number of embedding dimensions"
     )
     arch_grp.add_argument(
         "--project-dim", "-p", default=64, type=int, help="Number of projecting dimensions after"
@@ -281,27 +281,27 @@ if __name__ == "__main__":
         "TRAINING", description="Training control parameters"
     )
     train_grp.add_argument(
-        "--nb-epochs", "-e", default=100, type=int, help="Number of epochs to train for"
+        "--nb-epochs", "-e", default=4, type=int, help="Number of epochs to train for"
     )
     train_grp.add_argument(
-        "--warmup-steps", "-w", default=5000, type=int, help="Number of warmup steps"
+        "--warmup-steps", "-w", default=100, type=int, help="Number of warmup steps"
     )
     train_grp.add_argument(
         "--learning-rate",
         "-l",
-        default=1e-4,
+        default=5e-5,
         type=float,
         help="Traget starting learning rate",
     )
     train_grp.add_argument(
         "--check-val-every",
         "-C",
-        default=10_000,
+        default=500,
         type=int,
         help="Check validation dataset every n steps",
     )
     train_grp.add_argument(
-        "--batch-size", "-s", default=2, type=int, help="Training batch size"
+        "--batch-size", "-s", default=4, type=int, help="Training batch size"
     )
     train_grp.add_argument(
         "--max-steps", "-M", default=None, type=int, help="Max number of training steps"
@@ -340,7 +340,7 @@ if __name__ == "__main__":
         "--project-name",
         "-P",
         required=False,
-        default="PHYLOFORMER_EXPERIMENTS",
+        default="Protein-hackathon",
         help="Project in which to save this run on WandB",
     )
     log_grp.add_argument(
@@ -372,7 +372,7 @@ if __name__ == "__main__":
         save_dir=args.output_dir,
         project=args.project_name,
         name=args.run_name,
-        offline=True,
+        offline=False,
     )
 
     print(f"Training with args:\n{args}")
@@ -381,12 +381,12 @@ if __name__ == "__main__":
     LOGGING_STEPS = args.log_every
 
     N_CPUS = int(os.environ.get("SLURM_CPUS_PER_TASK", cpu_count()))
-    NUM_WORKERS = N_CPUS // 2
+    NUM_WORKERS = 0 # N_CPUS // 2
 
     global WORKERS_TRAIN
     global WORKERS_VAL
-    WORKERS_TRAIN = 0# max(NUM_WORKERS, N_CPUS - NUM_WORKERS)
-    WORKERS_VAL = 0# min(NUM_WORKERS, N_CPUS - NUM_WORKERS)
+    WORKERS_TRAIN = 0 # max(NUM_WORKERS, N_CPUS - NUM_WORKERS)
+    WORKERS_VAL = 0 # min(NUM_WORKERS, N_CPUS - NUM_WORKERS)
 
     print(
         f"Assigning {WORKERS_TRAIN} training, and {WORKERS_VAL} validation data-loading workers"
@@ -425,8 +425,8 @@ if __name__ == "__main__":
             "devices": int(os.environ["SLURM_GPUS_ON_NODE"]),
             "num_nodes": int(os.environ["SLURM_NNODES"]),
             "strategy": "ddp",
-            "accumulate_grad_batches": 4,
-            "precision": 8
+            "accumulate_grad_batches": 1,
+            "precision": 16
         }
 
     # "accumulate_grad_batches": 4,

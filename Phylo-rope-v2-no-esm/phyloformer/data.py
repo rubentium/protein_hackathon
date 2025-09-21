@@ -26,6 +26,7 @@ def load_alignment(filepath):
                 sequences.append(line)
 
     tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
+    tokenizer.save_pretrained("./tokenizer/")
     seqs = tokenizer(sequences, add_special_tokens=False, return_tensors="pt")["input_ids"]
     #msa = [[_] for _ in sequences]
     return seqs, ids, sequences

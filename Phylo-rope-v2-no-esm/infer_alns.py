@@ -8,6 +8,36 @@ from tqdm import tqdm
 
 from phyloformer.model import Phyloformer
 from phyloformer.data import load_alignment
+from transformers import AutoTokenizer
+
+
+def load_single_sequences(filepath):
+    """
+    Reads a fasta file and returns individual padded tensors for each sequence
+    """
+    sequences, ids = [], []
+
+    with open(filepath, "r") as aln:
+        for line in aln:
+            line = line.strip()
+            if line[0] == ">":
+                ids.append(line[1:])
+            else:
+                sequences.append(line)
+
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
+    
+    # Create individual tensors for each sequence
+    exit_tensors = []
+    for i, seq in enumerate(sequences):
+        # Tokenize single sequence
+        seq_tensor = tokenizer([seq], return_tensors="pt")["input_ids"]
+        seq_len = seq_tensor.shape[1]
+        exit_tensors.append(seq_tensor)
+        
+
+    
+    return exit_tensors, ids
 
 
 def vec_to_phylip(preds, ids):
@@ -58,9 +88,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.trees:
-        from skbio import DistanceMatrix
-        from skbio.tree import nj
 
     device = "cpu"
     if torch.cuda.is_available():
@@ -69,8 +96,17 @@ if __name__ == "__main__":
     # Loading model Which means we don't need lightning anymore
     ckpt = torch.load(args.weights, map_location=device)
     params = ckpt["hyper_parameters"]
+
+    print('params', params)
     params["device"] = device
     model = Phyloformer(**params)
+    print('model', model)
+
+    a={            k.replace("model.", ""): v
+            for k, v in ckpt["state_dict"].items()
+            if k != "model.seq2pair"}
+    for v,k in a.items():
+        print(v,k.shape)
     model.load_state_dict(
         {
             k.replace("model.", ""): v
@@ -79,9 +115,10 @@ if __name__ == "__main__":
         },
         strict=False,
     )
-
+    
     # Move model to correct place
-    model = model.to(device)
+    # model = model.to(device)
+    print('model after load', model)
     model.eval()
 
     # Path to dirs
@@ -91,32 +128,12 @@ if __name__ == "__main__":
     # Create output directory
     os.makedirs(out_dir, exist_ok=True)
 
+    alnpaths = 'path/to/inference/fasta/__.fasta'  # Define this
     with torch.no_grad():
         prev_shape = None
-        for alnpath in tqdm(glob(f"{in_dir}/*")):
 
-            # Check if path has FASTA extension
-            if not has_fasta_ext(alnpath):
-                raise ValueError(
-                    "Input files must be fasta files (.fa or .fasta). Got " f"{alnpath}"
-                )
-
-            stem = Path(alnpath).stem
-            matpath = os.path.join(out_dir, f"{stem}.phy")
-            treepath = os.path.join(out_dir, f"{stem}.nj.nwk")
-
-            aln, ids = load_alignment(alnpath)
-
-            # Predict distance matrix
-            preds = model(aln[None, :].to(device).float())
-
-            # Write distance matrix to disk
-            dm, phylip = vec_to_phylip(preds, ids)
-            with open(matpath, "w") as outfile:
-                outfile.write(phylip)
-
-            # Write tree to disk if requested
-            if args.trees:
-                dm = DistanceMatrix(dm.cpu().detach().numpy(), ids=ids)
-                with open(treepath, "w") as outfile:
-                    outfile.write(nj(dm, result_constructor=str))
+        sequences, ids = load_single_sequences(args.alndir)
+        for seq, name in zip(sequences, ids):
+                preds = model(seq[None, :]).long()
+                print('preds', preds, preds.shape)
+                break
