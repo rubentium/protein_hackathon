@@ -49,6 +49,7 @@ class Trainer:
         cfg = self.config
         step = state['step']
 
+        print("batch_shape", batch.shape)
         batch = batch.to(self.device)
         if mask is not None:
             mask = mask.to(self.device)

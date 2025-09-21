@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
+from flash_attn.flash_attn_interface import flash_attn_varlen_qkvpacked_func
 
 from einops import rearrange
 # from flash_attn.ops.fused_dense import FusedMLP, FusedDense
@@ -128,6 +129,11 @@ class TimestepEmbedder(nn.Module):
         freqs = torch.exp(
             -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
         ).to(device=t.device)
+        print(dim)
+        print('t',t.shape)
+        print('freqs',freqs.shape)
+        print('t[:, None]',t[:, None].shape)
+        print('args', t[:, None].float() * freqs[None])
         args = t[:, None].float() * freqs[None]
         embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         if dim % 2:
@@ -198,18 +204,20 @@ class DDiTBlock(nn.Module):
 
     def forward(self, x, rotary_cos_sin, sigma, seqlens=None):
         batch_size, seq_len = x.shape[0], x.shape[1]
+        print("sigma shape before before attn:", sigma.shape)
 
         bias_dropout_scale_fn = self._get_bias_dropout_scale()
-
+    
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(sigma)[:, None].chunk(6, dim=2)
-
+        print("shift_msa shape:", shift_msa.shape)
         # attention operation
         x_skip = x
         x = modulate_fused(self.norm1(x), shift_msa, scale_msa)
         # dtype0 = x.dtype
-
+        print("x shape before attn:", x.shape)
         qkv = self.attn_qkv(x)
-        qkv = rearrange(qkv, 'b s (three h d) -> b s three h d', three=3, h=self.n_heads)
+        print(qkv.shape)
+        qkv = rearrange(qkv, 'b l s (three h d) -> b l s three h d', three=3, h=self.n_heads)
         with torch.cuda.amp.autocast(enabled=False):
             cos, sin = rotary_cos_sin
             qkv = apply_rotary_pos_emb(
@@ -304,11 +312,13 @@ class SEDD(nn.Module, PyTorchModelHubMixin):
         # Compute embeddings
         x = self.vocab_embed(indices)
         c = F.silu(self.sigma_map(sigma))
+        print("x shape after embed:", x.shape)
         rotary_cos_sin = self.rotary_emb(x)
-
+        print("rotary_cos_sin shapes:", rotary_cos_sin[0].shape, rotary_cos_sin[1].shape)
         # Run transformer blocks
         with torch.cuda.amp.autocast(dtype=torch.bfloat16):
             for i in range(len(self.blocks)):
+                print(f"Block {i} input shape:", x.shape)
                 x = self.blocks[i](x, rotary_cos_sin, c, seqlens=None)
 
             x = self.output_layer(x, c)
@@ -325,7 +335,7 @@ class SEDD(nn.Module, PyTorchModelHubMixin):
         return x
 
 def score_fn(model, x, sigma, train=True, sampling=False):
-    sigma = sigma.reshape(-1)
+    #sigma = sigma.reshape(-1)
     
     if train:
         model.train()

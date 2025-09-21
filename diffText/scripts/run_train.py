@@ -88,13 +88,13 @@ def main():
     args.add_argument(
         "--train-alignments",
         "-a",
-        default="/home/noxatras/Documents/hackathon/phylo_data/msa",
+        default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/train/alignments",
         help="Directory with training alignments",
     )
     args.add_argument(
         "--val-alignments",
         "-A",
-        default="/home/noxatras/Documents/hackathon/phylo_data/msa",
+        default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/val/alignments",
         help="Directory with validation alignments",
     )
     args = args.parse_args()

@@ -60,13 +60,15 @@ def bias_dropout_add_scale_fused_inference(
 @torch.jit.script
 def modulate_fused(x: Tensor, shift: Tensor, scale: Tensor) -> Tensor:
     # Handle shape mismatches before calling modulate
+    print("input into module_fused - shapes:", x.shape, shift.shape, scale.shape)
     if x.shape[1] != shift.shape[1] or x.shape[1] != scale.shape[1]:
         # Get the minimum sequence length
         min_seq_len = min(x.shape[1], shift.shape[1], scale.shape[1])
-        
+        print("Slicing to min_seq_len:", min_seq_len)
         # Slice all tensors to the same sequence length
         x = x[:, :min_seq_len]
-        shift = shift[:, :min_seq_len] 
+        print("x shape after slicing:", x.shape)
+        shift = shift[:, :min_seq_len]
         scale = scale[:, :min_seq_len]
-    
+    print("Inside modulate_fused - shapes:", x.shape, shift.shape, scale.shape)
     return x * (1 + scale) + shift

@@ -12,16 +12,19 @@ def loss_fn(batch, model, noise, graph, train=True, t=None, perturbed_batch=None
 
     if t is None:
         t = (1 - sampling_eps) * torch.rand(batch.shape[0], device=batch.device) + sampling_eps
-        
+    print('t_loss', t)
     sigma, dsigma = noise(t)
+    
     
     if perturbed_batch is None:
         debug_vars = {**globals(), **locals()}
+        print('sigma', sigma.shape)
         #code.interact(local=debug_vars, banner="Debug console - all variables available")
         sigma_expanded = sigma[:, None].expand(batch.shape[0], batch.shape[1])  # [B, L]
+        print("sigma.shape", sigma_expanded.shape)
         perturbed_batch = graph.sample_transition(batch, sigma[:, None], mask)
-
-    log_score = score_fn(model, perturbed_batch, sigma_expanded, train=train, sampling=False)
+    print("perturbed_batch", perturbed_batch.shape)
+    log_score = score_fn(model, perturbed_batch, sigma, train=train, sampling=False)
     # print("log_score", log_score.shape)
     # print(log_score)
     loss = graph.score_entropy(log_score, sigma_expanded[:, None], perturbed_batch, batch, mask)

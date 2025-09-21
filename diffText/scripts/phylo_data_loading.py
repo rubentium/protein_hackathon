@@ -67,7 +67,7 @@ def mask_conserved(freq_df, rep=0.8):
         stats=binary_cols.value_counts()[1]
     except:
         stats=0
-    print(f"Number of positions with {rep} of same aa: {stats}, {(stats/len(binary_cols))*100}%")
+    # print(f"Number of positions with {rep} of same aa: {stats}, {(stats/len(binary_cols))*100}%")
     return binary_cols
 
 def mask_coevolved(freq_df, aa_n=2, tol=0.03):
@@ -91,7 +91,7 @@ def mask_coevolved(freq_df, aa_n=2, tol=0.03):
         stats=binary_cols.value_counts()[1]
     except:
         stats=0
-    print(f"Number of positions with {aa_n} aa with frquency {rep} +- {tol}: {stats}, {(stats/len(binary_cols))*100}%")
+    # print(f"Number of positions with {aa_n} aa with frquency {rep} +- {tol}: {stats}, {(stats/len(binary_cols))*100}%")
     return binary_cols
 
 def combine_masks(binary_cols_list, N):
@@ -105,7 +105,7 @@ def combine_masks(binary_cols_list, N):
         stats=(pos_encoded_msa==1).astype(int).iloc[0].value_counts()[1]
     except:
         stats=0
-    print(f"Number of positions with carcass aa : {stats}, {(stats/len(pos_encoded_msa.T))*100}%")    
+    # print(f"Number of positions with carcass aa : {stats}, {(stats/len(pos_encoded_msa.T))*100}%")    
     return pos_encoded_msa
 
 
@@ -132,7 +132,7 @@ def load_alignment(filepath):
     Reads a fasta formater alignment and returns a one-hot encoded
     tensor of the MSA and the corresponding taxa label order
     """
-    print(f"Loading alignment from {filepath}")
+    # print(f"Loading alignment from {filepath}")
     sequences, ids = [], []
 
     with open(filepath, "r") as aln:
@@ -144,7 +144,7 @@ def load_alignment(filepath):
                 sequences.append(line)
 
     tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
-    seqs = tokenizer(sequences, return_tensors="pt")["input_ids"]
+    seqs = tokenizer(sequences, return_tensors="pt", add_special_tokens=False)["input_ids"]
     #msa = [[_] for _ in sequences]
     return seqs, ids, sequences
 
@@ -191,14 +191,9 @@ def load_carcass(msa):
     
     # Convert to tensor
     carcass_tensor = torch.tensor(pos_encoded_msa_list)
+
     
-    # Add padding: zeros at the beginning (first column) and end (last column)
-    # to match the tokenized sequences with special tokens
-    batch_size, seq_len = carcass_tensor.shape
-    padded_carcass = torch.zeros(batch_size, seq_len + 2)
-    padded_carcass[:, 1:-1] = carcass_tensor  # Place original data in the middle
-    
-    return padded_carcass
+    return carcass_tensor
 
 
 
