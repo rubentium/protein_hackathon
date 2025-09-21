@@ -5,6 +5,10 @@ import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 
+import phyloformer.msa_to_carcass
+from phyloformer.msa_to_carcass import *
+
+#for debug use alnfile="../../../phylo_data/phylo_data/msa/2_50_tips.fasta" 
 
 def load_alignment(filepath):
     """
@@ -21,30 +25,54 @@ def load_alignment(filepath):
             else:
                 sequences.append(line)
 
-    tokenizer = AutoTokenizer.from_pretrained("/home/navasard/Phylo-rope-v2/esm2_t12_35M_UR50D")
-    seqs = tokenizer(sequences, return_tensors="pt")["input_ids"]
-    return seqs, ids
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
+    seqs = tokenizer(sequences, add_special_tokens=False, return_tensors="pt")["input_ids"]
+    #msa = [[_] for _ in sequences]
+    return seqs, ids, sequences
 
 
-def load_distance_matrix(filepath, ids):
+#def load_distance_matrix(filepath, ids):
+#    """
+#    Reads a newick formatted tree and returns a vector of the
+#    upper triangle of the corresponding pairwise distance matrix.
+#    The order of taxa in the rows and columns of the corresponding
+#    distance matrix is given by the `ids` input list.
+#    """
+#
+#    distances = []
+#
+#    with open(filepath, "r") as treefile:
+#        tree = dendropy.Tree.get(file=treefile, schema="newick")
+#    taxa = tree.taxon_namespace
+#    dm = tree.phylogenetic_distance_matrix()
+#    for tip1, tip2 in combinations(ids, 2):
+#        l1, l2 = taxa.get_taxon(tip1), taxa.get_taxon(tip2)
+#        distances.append(dm.distance(l1, l2))
+#
+#    return torch.tensor(distances)
+
+def load_carcass(msa):
     """
-    Reads a newick formatted tree and returns a vector of the
-    upper triangle of the corresponding pairwise distance matrix.
-    The order of taxa in the rows and columns of the corresponding
-    distance matrix is given by the `ids` input list.
+    Encode MSA based on set of rules.
+    Output: Columns = amino acid positions , Rows = MSA, Values 1-> pass one or more rules
     """
 
-    distances = []
+    seq_matrix = msa_to_matrix(msa)
 
-    with open(filepath, "r") as treefile:
-        tree = dendropy.Tree.get(file=treefile, schema="newick")
-    taxa = tree.taxon_namespace
-    dm = tree.phylogenetic_distance_matrix()
-    for tip1, tip2 in combinations(ids, 2):
-        l1, l2 = taxa.get_taxon(tip1), taxa.get_taxon(tip2)
-        distances.append(dm.distance(l1, l2))
+    freq_df = aafreq_percol(seq_matrix)
 
-    return torch.tensor(distances)
+    pos_conserved = mask_conserved(freq_df)
+
+    pos_coev2 = mask_coevolved(freq_df)
+
+    pos_coev3 = mask_coevolved(freq_df, aa_n=3)
+
+    pos_encoded_msa = combine_masks([pos_conserved , pos_coev2 , pos_coev3], len(seq_matrix))
+
+    pos_encoded_msa_list = pos_encoded_msa.values.tolist()
+
+    return torch.tensor(pos_encoded_msa_list)
+
 
 
 class PhyloDataset(Dataset):
@@ -64,7 +92,8 @@ class PhyloDataset(Dataset):
 
     def __getitem__(self, index):
         treefile, alnfile = self.pairs[index]
-        x, ids = load_alignment(alnfile)
-        y = load_distance_matrix(treefile, ids)
+        x, ids, msa = load_alignment(alnfile)
+        ### y = load_distance_matrix(treefile, ids)
+        y = load_carcass(x.cpu().numpy())
 
         return x, y
