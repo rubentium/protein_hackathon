@@ -4,9 +4,10 @@ import os.path
 import yaml
 import oxen
 
+
 import torch
 import yaml
-
+import random
 
 import argparse
 from sedd.datasets.ox_dataset import OxDataset
@@ -48,6 +49,17 @@ def print_devices(device):
     print(f"Using device: {device}")
     print(f"Found {os.cpu_count()} total number of CPUs.")
 
+
+def choose_data(train_alignments, val_alignments):
+    """Find and select training and validation tree/MSA pairs"""
+    # Choose training and validation examples
+
+    train_path = listdir_paths(train_alignments)
+    val_path = listdir_paths(val_alignments)
+
+    return train_path, val_path
+
+
 def main():
     args = argparse.ArgumentParser(description="Train SEDD")
     args.add_argument("--cfg", type=str, default="configs/config.yaml")
@@ -55,7 +67,25 @@ def main():
     args.add_argument("--repo", type=str, default="ox/SEDD_dev")
     args.add_argument("--msa", default=False, help="Add the multiple sequence alignment data", action="store_true")
     args.add_argument("--foundation", default=False, help="Add the amino acid foundation predictions", action="store_true")
+    args.add_argument(
+        "--train-alignments",
+        "-a",
+        default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/train/alignments",
+        help="Directory with training alignments",
+    )
+    args.add_argument(
+        "--val-alignments",
+        "-A",
+        default="/mloscratch/homes/navasard/protein_stuff/LG_training_set/val/alignments",
+        help="Directory with validation alignments",
+    )
     args = args.parse_args()
+
+
+    train_paths, val_paths = choose_data(args.train_alignments, args.val_alignments)
+
+
+
 
     # load in tokenizer
     # tokenizer = OxTokenizer()
@@ -113,8 +143,8 @@ def main():
 
     
     # train_ds = DataLoader(BabyNamesDataset(tokenizer, seq_len=cfg['model']['length']), batch_size=cfg['training']['batch_size'], shuffle=True, num_workers=4)
-    train_ds = DataLoader(PhyloDataModule(args.train_alignments, args.val_alignments, args.batch_size))
-    eval_ds = DataLoader(BabyNamesDataset(tokenizer, seq_len=cfg['model']['length'], num_examples=128, train=False))
+    train_ds = DataLoader(PhyloDataModule(train_paths, args.batch_size, shuffle=True))
+    eval_ds = DataLoader(PhyloDataModule(val_paths, args.batch_size, shuffle=True))
     
     # train_ds = DataLoader(ABCDataset(tokenizer, seq_len=cfg['model']['length'], num_examples=10000), batch_size=cfg['training']['batch_size'], shuffle=True, num_workers=4)
     # eval_ds = DataLoader(ABCDataset(tokenizer, seq_len=cfg['model']['length'], num_examples=128))
