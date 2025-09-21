@@ -61,6 +61,7 @@ def mask_conserved(freq_df, rep=0.8):
     except:
         stats=0
     # print(f"Number of positions with {rep} of same aa: {stats}, {(stats/len(binary_cols))*100}%")
+
     return binary_cols
 
 def mask_coevolved(freq_df, aa_n=2, tol=0.03):
@@ -84,7 +85,7 @@ def mask_coevolved(freq_df, aa_n=2, tol=0.03):
         stats=binary_cols.value_counts()[1]
     except:
         stats=0
-    # print(f"Number of positions with {aa_n} aa with frquency {rep} +- {tol}: {stats}, {(stats/len(binary_cols))*100}%")
+
     return binary_cols
 
 def combine_masks(binary_cols_list, N):
@@ -98,7 +99,7 @@ def combine_masks(binary_cols_list, N):
         stats=(pos_encoded_msa==1).astype(int).iloc[0].value_counts()[1]
     except:
         stats=0
-    # print(f"Number of positions with carcass aa : {stats}, {(stats/len(pos_encoded_msa.T))*100}%")    
+
     return pos_encoded_msa
 
 
@@ -117,6 +118,5 @@ def combine_masks(binary_cols_list, N):
 #pos_coev3 = mask_coevolved(freq_df, aa_n=3)
 
 #pos_encoded_msa = combine_masks([pos_conserved , pos_coev2 , pos_coev3])
-
 
 

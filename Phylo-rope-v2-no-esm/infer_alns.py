@@ -40,6 +40,35 @@ def load_single_sequences(filepath):
     return exit_tensors, ids
 
 
+def load_single_sequences(filepath):
+    """
+    Reads a fasta file and returns individual padded tensors for each sequence
+    """
+    sequences, ids = [], []
+
+    with open(filepath, "r") as aln:
+        for line in aln:
+            line = line.strip()
+            if line[0] == ">":
+                ids.append(line[1:])
+            else:
+                sequences.append(line)
+
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
+    
+    # Create individual tensors for each sequence
+    exit_tensors = []
+    for i, seq in enumerate(sequences):
+        # Tokenize single sequence
+        seq_tensor = tokenizer([seq], return_tensors="pt")["input_ids"]
+        seq_len = seq_tensor.shape[1]
+        exit_tensors.append(seq_tensor)
+        
+
+    
+    return exit_tensors, ids
+
+
 def vec_to_phylip(preds, ids):
     n = len(ids)
     dm = torch.zeros((n, n)).type_as(preds)
@@ -132,8 +161,10 @@ if __name__ == "__main__":
     with torch.no_grad():
         prev_shape = None
 
+
         sequences, ids = load_single_sequences(args.alndir)
         for seq, name in zip(sequences, ids):
                 preds = model(seq[None, :]).long()
                 print('preds', preds, preds.shape)
                 break
+

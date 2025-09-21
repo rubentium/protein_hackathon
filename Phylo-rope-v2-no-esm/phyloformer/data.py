@@ -8,6 +8,7 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 import phyloformer.msa_to_carcass
 from phyloformer.msa_to_carcass import *
 
+
 #for debug use alnfile="../../../phylo_data/phylo_data/msa/2_50_tips.fasta" 
 
 def load_alignment(filepath):
@@ -28,6 +29,7 @@ def load_alignment(filepath):
     tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
     tokenizer.save_pretrained("./tokenizer/")
     seqs = tokenizer(sequences, add_special_tokens=False, return_tensors="pt")["input_ids"]
+
     #msa = [[_] for _ in sequences]
     return seqs, ids, sequences
 
@@ -94,7 +96,9 @@ class PhyloDataset(Dataset):
     def __getitem__(self, index):
         treefile, alnfile = self.pairs[index]
         x, ids, msa = load_alignment(alnfile)
+
         ### y = load_distance_matrix(treefile, ids)
         y = load_carcass(x.cpu().numpy())
+
 
         return x, y
